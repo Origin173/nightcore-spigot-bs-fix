@@ -70,8 +70,17 @@ public class UserData extends StatefulData {
 
         if (this.lastSkinUrl != null) {
             try {
+                URL skinUrl = new URI(this.lastSkinUrl).toURL();
+
+                // Paper's PlayerTextures accepts only official Mojang texture URLs. External skin
+                // providers, such as Blessing Skin, use their own hosts, so skip them here.
+                if (!"textures.minecraft.net".equals(skinUrl.getHost())
+                    || !skinUrl.getPath().startsWith("/texture/")) {
+                    return;
+                }
+
                 PlayerTextures textures = this.profile.getTextures();
-                textures.setSkin(new URI(this.lastSkinUrl).toURL());
+                textures.setSkin(skinUrl);
                 this.profile.setTextures(textures);
             }
             catch (MalformedURLException | URISyntaxException e) {
