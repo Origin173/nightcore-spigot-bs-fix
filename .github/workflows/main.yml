@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout NightCore
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Java 21
@@ -18,31 +18,166 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # NightCore 2.16.4 depends on ExcellentCrates 6.4.1,
-      # but that artifact is currently unavailable from its Maven repositories.
-      - name: Checkout ExcellentCrates 6.4.1
-        uses: actions/checkout@v4
-        with:
-          repository: nulli0n/ExcellentCrates-spigot
-          ref: 30b4ffe02e178ac0f46375bc5bdcc3087ce9dc9f
-          path: .deps/ExcellentCrates
-
-      - name: Install ExcellentCrates 6.4.1
+      # ExcellentCrates 6.4.1 is currently unavailable from the configured
+      # Maven repositories. Create a minimal compile-only API stub instead.
+      - name: Install ExcellentCrates compile stub
+        shell: bash
         run: |
-          mvn -f .deps/ExcellentCrates/pom.xml \
-            -U \
-            -DskipTests \
-            install
+          STUB=".ci-stub/excellentcrates"
+
+          mkdir -p "$STUB/src/main/java/su/nightexpress/excellentcrates"
+          mkdir -p "$STUB/src/main/java/su/nightexpress/excellentcrates/crate"
+          mkdir -p "$STUB/src/main/java/su/nightexpress/excellentcrates/crate/impl"
+          mkdir -p "$STUB/src/main/java/su/nightexpress/excellentcrates/key"
+
+          cat > "$STUB/pom.xml" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <project xmlns="http://maven.apache.org/POM/4.0.0"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+            <modelVersion>4.0.0</modelVersion>
+
+            <groupId>su.nightexpress.excellentcrates</groupId>
+            <artifactId>ExcellentCrates</artifactId>
+            <version>6.4.1</version>
+
+            <properties>
+              <maven.compiler.source>21</maven.compiler.source>
+              <maven.compiler.target>21</maven.compiler.target>
+              <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+            </properties>
+
+            <repositories>
+              <repository>
+                <id>spigot-repo</id>
+                <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+              </repository>
+            </repositories>
+
+            <dependencies>
+              <dependency>
+                <groupId>org.spigotmc</groupId>
+                <artifactId>spigot-api</artifactId>
+                <version>1.21.11-R0.1-SNAPSHOT</version>
+                <scope>provided</scope>
+              </dependency>
+            </dependencies>
+          </project>
+          EOF
+
+          cat > "$STUB/src/main/java/su/nightexpress/excellentcrates/CratesAPI.java" <<'EOF'
+          package su.nightexpress.excellentcrates;
+
+          import su.nightexpress.excellentcrates.crate.CrateManager;
+          import su.nightexpress.excellentcrates.key.KeyManager;
+
+          public final class CratesAPI {
+
+              private CratesAPI() {
+              }
+
+              public static boolean isLoaded() {
+                  return false;
+              }
+
+              public static CrateManager getCrateManager() {
+                  return null;
+              }
+
+              public static KeyManager getKeyManager() {
+                  return null;
+              }
+          }
+          EOF
+
+          cat > "$STUB/src/main/java/su/nightexpress/excellentcrates/crate/CrateManager.java" <<'EOF'
+          package su.nightexpress.excellentcrates.crate;
+
+          import org.bukkit.inventory.ItemStack;
+          import su.nightexpress.excellentcrates.crate.impl.Crate;
+
+          public class CrateManager {
+
+              public boolean isCrate(ItemStack item) {
+                  return false;
+              }
+
+              public Crate getCrateById(String id) {
+                  return null;
+              }
+
+              public Crate getCrateByItem(ItemStack item) {
+                  return null;
+              }
+          }
+          EOF
+
+          cat > "$STUB/src/main/java/su/nightexpress/excellentcrates/crate/impl/Crate.java" <<'EOF'
+          package su.nightexpress.excellentcrates.crate.impl;
+
+          import org.bukkit.inventory.ItemStack;
+
+          public class Crate {
+
+              public String getId() {
+                  return null;
+              }
+
+              public ItemStack getItemStack() {
+                  return null;
+              }
+          }
+          EOF
+
+          cat > "$STUB/src/main/java/su/nightexpress/excellentcrates/key/KeyManager.java" <<'EOF'
+          package su.nightexpress.excellentcrates.key;
+
+          import org.bukkit.inventory.ItemStack;
+
+          public class KeyManager {
+
+              public boolean isKey(ItemStack item) {
+                  return false;
+              }
+
+              public CrateKey getKeyById(String id) {
+                  return null;
+              }
+
+              public CrateKey getKeyByItem(ItemStack item) {
+                  return null;
+              }
+          }
+          EOF
+
+          cat > "$STUB/src/main/java/su/nightexpress/excellentcrates/key/CrateKey.java" <<'EOF'
+          package su.nightexpress.excellentcrates.key;
+
+          import org.bukkit.inventory.ItemStack;
+
+          public class CrateKey {
+
+              public String getId() {
+                  return null;
+              }
+
+              public ItemStack getItemStack() {
+                  return null;
+              }
+          }
+          EOF
+
+          mvn -B -f "$STUB/pom.xml" clean install -DskipTests
 
       - name: Build NightCore
-        run: |
-          mvn -U clean package -DskipTests
+        run: mvn -B -U clean package -DskipTests
 
-      - name: List build artifacts
+      - name: Show build artifacts
         run: |
-          find target -maxdepth 2 -type f -name "*.jar" -print
+          echo "NightCore build artifacts:"
+          find target -type f -name "*.jar" -print
 
-      - name: Upload NightCore
+      - name: Upload NightCore jar
         uses: actions/upload-artifact@v4
         with:
           name: nightcore-bs-fix
